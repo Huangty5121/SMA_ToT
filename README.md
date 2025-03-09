@@ -1,50 +1,29 @@
 # 基于 SMA-ToT 的多路径推理优化方法
 
-## 目录
-
-- [中文说明](#中文说明)
-- [方法](#方法)
-  - [1. 基于 SMA 原始机制的理论基础](#1-基于-sma-原始机制的理论基础)
-  - [2. 融入 ToT 架构的思想](#2-融入-tot-架构的思想)
-  - [3. 质量反馈与评分衰减](#3-质量反馈与评分衰减)
-  - [4. SMA-ToT 算法流程](#4-sma-tot-算法流程)
-  - [5. 方法优势与特性体现](#5-方法优势与特性体现)
-- [总结](#总结)
-- [English Version](#english-version)
-  - [Method](#method)
-    - [1. Theoretical Basis from the Original SMA](#1-theoretical-basis-from-the-original-sma)
-    - [2. Integrating the Mechanism into the ToT Architecture](#2-integrating-the-mechanism-into-the-tot-architecture)
-    - [3. Quality Feedback and Score Decay](#3-quality-feedback-and-score-decay)
-    - [4. SMA-ToT Algorithm Flow](#4-sma-tot-algorithm-flow)
-    - [5. Advantages and Key Characteristics](#5-advantages-and-key-characteristics)
-  - [Conclusion](#conclusion)
 ---
-## 中文说明
+## 說明
 
-本项目“基于 SMA-ToT 的多路径推理优化方法”中方法部分的详细描述如下。本 README 首先以中文形式呈现，随后给出对应的英文版本。所有数学公式均使用美元符号 `$`（行间公式使用 `$$`）进行标记。
+本项目旨在提出一种全新设计的 SMA-ToT 框架，其核心思想在于将黏菌算法 (SMA) 的随机“位移”更新机制引入到树状思维 (ToT) 的多路径推理过程中，从而实现对推理路径优劣的动态调整与自组织优化。本文方法部分主要包括以下几个方面：从 SMA 原始机制出发的理论基础、如何将该机制融入 ToT 架构、各个更新公式的推导，以及基于元学习 (MAML) 对关键参数进行自动调整的策略。
 
 ---
 
 ## 方法
 
-本研究旨在提出一种全新设计的 SMA-ToT 框架，其核心思想在于将黏菌算法（SMA）的随机“位移”更新机制引入到树状思维（ToT）的多路径推理过程中，从而实现对推理路径优劣的动态调整与自组织优化。本文方法部分主要包括以下几个方面：从 SMA 原始机制出发的理论基础、如何将该机制融入 ToT 架构、各个更新公式的推导，以及基于元学习（MAML）对关键参数进行自动调整的策略。
----
 ### 1. 基于 SMA 原始机制的理论基础
 
-在经典的黏菌算法（SMA）中，对于候选解 $X_i$（例如搜索空间中的一个位置），通常采用如下形式的更新公式（示意性版本）：
+在经典的黏菌算法 (SMA) 中，对于候选解 $X_i$（例如搜索空间中的一个位置），通常采用如下形式的更新公式（示意性版本）：
 
 $$
 X_i^{t+1} =
 \begin{cases}
-X_{\text{best}}^t + v \cdot \ln\bigl(\tfrac{1}{r_2}\bigr) \cdot \bigl( X_i^t - X_{\text{best}}^t \bigr), & \text{if } r_3 < p,\\[6pt]
-X_i^t + v \cdot \ln\bigl(\tfrac{1}{r_2}\bigr) \cdot \bigl( X_i^t - X_{\text{best}}^t \bigr), & \text{otherwise,}
+X_{\text{best}}^t + v \cdot \ln\left(\frac{1}{r_2}\right) \cdot \left( X_i^t - X_{\text{best}}^t \right), & \text{if } r_3 < p, \\
+X_i^t + v \cdot \ln\left(\frac{1}{r_2}\right) \cdot \left( X_i^t - X_{\text{best}}^t \right), & \text{otherwise,}
 \end{cases}
 $$
 
 其中：
-
 - $X_{\text{best}}^t$ 表示当前迭代中表现最优的解；
-- $v$ 为步长参数（可设计为随迭代逐渐衰减，如 $v_t = v_0 \exp(-\lambda t)$）；
+- $v$ 为步长参数（可设计为随迭代逐渐衰减，如 $v_t = v_0\exp(-\lambda t)$）；
 - $r_2$ 与 $r_3$ 均为服从均匀分布 $U(0,1)$ 的随机变量；
 - $p$ 为切换阈值，用于决定是向当前最优解靠拢还是保持随机性更新。
 
@@ -58,24 +37,30 @@ $$
 
 1. **边的选择**  
    对于节点 $i$ 下的候选下一状态集合 $N(i)$，我们采用 softmax 函数计算选边概率：
-   $$
-   P_{ij}^t = \frac{\exp(S_{ij}^t / \tau)}{\sum_{l \in N(i)} \exp(S_{il}^t / \tau)},
-   $$
+
+$$
+P_{ij}^t = \frac{\exp(S_{ij}^t/\tau)}{\sum_{l\in N(i)}\exp(S_{il}^t/\tau)}
+$$
+   
    其中 $\tau$ 为温度参数，用于平衡探索与开发。
 
-2. **质量评分的动态更新**  
+3. **质量评分的动态更新**  
    结合 SMA 的随机“位移”思想，对边评分 $S_{ij}$ 进行迭代更新。设当前节点 $i$ 下所有候选边的最高评分为
-   $$
-   S_{\text{best}}^t = \max_{l \in N(i)} S_{il}^t.
-   $$
+   
+$$
+S_{\text{best}}^t = \max_{l\in N(i)} S_{il}^t.
+$$
+   
    则对于边 $(i,j)$ 的更新采用如下公式：
-   $$
-   S_{ij}^{t+1} =
-   \begin{cases}
-   S_{\text{best}}^t + v \cdot \ln\bigl(\tfrac{1}{r_2}\bigr) \cdot \bigl(S_{ij}^t - S_{\text{best}}^t\bigr), & \text{if } r_3 < p,\\[6pt]
-   S_{ij}^t + v \cdot \ln\bigl(\tfrac{1}{r_2}\bigr) \cdot \bigl(S_{ij}^t - S_{\text{best}}^t\bigr), & \text{otherwise,}
-   \end{cases}
-   $$
+   
+$$
+S_{ij}^{t+1} =
+\begin{cases}
+S_{\text{best}}^t + v \cdot \ln\left(\frac{1}{r_2}\right) \cdot \left( S_{ij}^t - S_{\text{best}}^t \right), & \text{if } r_3 < p, \\
+S_{ij}^t + v \cdot \ln\left(\frac{1}{r_2}\right) \cdot \left( S_{ij}^t - S_{\text{best}}^t \right), & \text{otherwise,}
+\end{cases}
+$$
+   
    其中：
    - $v$ 为步长参数（可随迭代调整）；
    - $r_2, r_3 \sim U(0,1)$ 是随机变量；
@@ -88,24 +73,29 @@ $$
 ### 3. 质量反馈与评分衰减
 
 为充分利用多路径推理过程中生成的完整推理链，我们引入质量反馈机制。设一条从 $s_0$ 到 $s_f$ 的完整推理路径为 $P$，其质量评价函数定义为：
+
 $$
 Q(P) = w_1 C(P) + w_2 L(P) + w_3 E(P),
 $$
-其中：
 
+其中：
 - $C(P)$ 表示语义连贯性（例如相邻状态的嵌入相似度）；
-- $L(P)$ 表示路径长度惩罚（例如 $-\ln(\lvert P\rvert)$）；
+- $L(P)$ 表示路径长度惩罚（例如 $-\ln(|P|)$）；
 - $E(P)$ 表示专家共识评分；
 - $w_1, w_2, w_3$ 为相应权重。
 
 对于路径 $P$ 中的每条边 $(i,j)$，在更新后的评分上加上反馈项：
+
 $$
 S_{ij}^{t+1} \leftarrow S_{ij}^{t+1} + \gamma \cdot Q(P),
 $$
+
 其中 $\gamma$ 为反馈权重参数。为防止评分无限累积，进一步引入衰减项：
+
 $$
 S_{ij}^{t+1} \leftarrow (1-\delta) \, S_{ij}^{t+1},
 $$
+
 其中 $\delta$ 为衰减率。
 
 上述反馈机制使得在每次迭代中，高质量的推理路径能够强化其沿途边的评分，进而在后续迭代中更容易被选中，体现了信息共享与反馈机制。
@@ -121,31 +111,38 @@ $$
 
 2. **路径生成**  
    - 对于每个节点 $i$，根据边选择概率
-     $$
-     P_{ij}^t = \frac{\exp(S_{ij}^t / \tau)}{\sum_{l \in N(i)} \exp(S_{il}^t / \tau)},
-     $$
-     采样得到下一状态，直至生成完整推理路径 $P_k$。各个推理路径由多个专家独立生成，从而实现多样性探索。
+   
+$$
+P_{ij}^t = \frac{\exp(S_{ij}^t/\tau)}{\sum_{l\in N(i)}\exp(S_{il}^t/\tau)}
+$$
+     
+   采样得到下一状态，直至生成完整推理路径 $P_k$。各个推理路径由多个专家独立生成，从而实现多样性探索。
 
 3. **路径评价**  
    - 对每条生成的推理路径 $P_k$ 计算质量评价 $Q(P_k)$。
 
 4. **评分更新**  
    - 对于路径 $P_k$ 中的每条边 $(i,j)$，按照以下公式更新评分：
-     $$
-     S_{ij}^{t+1} =
-     \begin{cases}
-     S_{\text{best}}^t + v \cdot \ln\bigl(\tfrac{1}{r_2}\bigr) \cdot \bigl(S_{ij}^t - S_{\text{best}}^t\bigr), & r_3 < p,\\[6pt]
-     S_{ij}^t + v \cdot \ln\bigl(\tfrac{1}{r_2}\bigr) \cdot \bigl(S_{ij}^t - S_{\text{best}}^t\bigr), & \text{otherwise,}
-     \end{cases}
-     $$
-     并进一步加上反馈：
-     $$
-     S_{ij}^{t+1} \leftarrow S_{ij}^{t+1} + \gamma \cdot Q(P_k),
-     $$
-     最后对评分进行衰减：
-     $$
-     S_{ij}^{t+1} \leftarrow (1-\delta) \, S_{ij}^{t+1}.
-     $$
+   
+$$
+S_{ij}^{t+1} =
+\begin{cases}
+S_{\text{best}}^t + v \cdot \ln\left(\frac{1}{r_2}\right) \cdot \left( S_{ij}^t - S_{\text{best}}^t \right), & r_3 < p, \\
+S_{ij}^t + v \cdot \ln\left(\frac{1}{r_2}\right) \cdot \left( S_{ij}^t - S_{\text{best}}^t \right), & \text{otherwise,}
+\end{cases}
+$$
+     
+   并进一步加上反馈：
+     
+$$
+S_{ij}^{t+1} \leftarrow S_{ij}^{t+1} + \gamma \cdot Q(P_k),
+$$
+     
+   最后对评分进行衰减：
+     
+$$
+S_{ij}^{t+1} \leftarrow (1-\delta) \, S_{ij}^{t+1}.
+$$
 
 5. **迭代更新与最优路径提取**  
    - 重复路径生成与评分更新步骤，直至达到预设最大迭代次数或满足收敛条件。  
@@ -159,7 +156,7 @@ $$
      - 反馈权重 $\gamma$；  
      - 衰减率 $\delta$；  
      - 质量函数中的权重 $w_1, w_2, w_3$。  
-   - 利用模型无关元学习（MAML）框架，在面对新任务时，通过少量梯度更新实现这些参数的自动优化，从而提高系统的适应性和鲁棒性。
+   - 利用模型无关元学习 (MAML) 框架，在面对新任务时，通过少量梯度更新实现这些参数的自动优化，从而提高系统的适应性和鲁棒性。
 
 ---
 
@@ -187,104 +184,98 @@ $$
 
 ---
 
-## English Version
+# Multi-Path Reasoning Optimization Method Based on SMA-ToT
 
-Below is the English version of the same methodology, with all mathematical formulas also presented using `$...$` (inline) and `$$...$$` (block) notation.
+## Introduction
+
+This project proposes a novel SMA-ToT framework, whose core idea is to integrate the stochastic "displacement" update mechanism of the slime mold algorithm (SMA) into the multi-path reasoning process of tree-of-thought (ToT) to achieve dynamic adjustment and self-organized optimization of reasoning paths. This document details the method, including: the theoretical foundation based on the original SMA mechanism, how to incorporate this mechanism into the ToT framework, derivation of various update formulas, and the strategy of automatically adjusting key parameters based on model-agnostic meta-learning (MAML).
 
 ---
-
-# A Multi-Path Reasoning Optimization Method Based on SMA-ToT
 
 ## Method
 
-This study aims to propose a newly designed SMA-ToT framework. The core idea is to introduce the random “shift” update mechanism of the Slime Mould Algorithm (SMA) into the multi-path reasoning process of the Tree-of-Thoughts (ToT), thereby achieving dynamic adjustment and self-organizing optimization of reasoning paths. This section covers the theoretical basis derived from the original SMA, how to integrate this mechanism into the ToT structure, the derivation of each update formula, and the strategy for automatically tuning key parameters via Model-Agnostic Meta-Learning (MAML).
+### 1. Theoretical Foundation Based on the Original SMA Mechanism
 
----
-
-### 1. Theoretical Basis from the Original SMA
-
-In the classic Slime Mould Algorithm (SMA), for a candidate solution $X_i$ (e.g., a position in the search space), the update formula typically takes the following schematic form:
+In the classical slime mold algorithm (SMA), for a candidate solution $X_i$ (e.g., a position in the search space), an illustrative update formula is used:
 
 $$
 X_i^{t+1} =
 \begin{cases}
-X_{\text{best}}^t + v \cdot \ln\bigl(\tfrac{1}{r_2}\bigr) \cdot \bigl( X_i^t - X_{\text{best}}^t \bigr), & \text{if } r_3 < p,\\[6pt]
-X_i^t + v \cdot \ln\bigl(\tfrac{1}{r_2}\bigr) \cdot \bigl( X_i^t - X_{\text{best}}^t \bigr), & \text{otherwise,}
+X_{\text{best}}^t + v \cdot \ln\left(\frac{1}{r_2}\right) \cdot \left( X_i^t - X_{\text{best}}^t \right), & \text{if } r_3 < p, \\
+X_i^t + v \cdot \ln\left(\frac{1}{r_2}\right) \cdot \left( X_i^t - X_{\text{best}}^t \right), & \text{otherwise,}
 \end{cases}
 $$
 
 where:
-
 - $X_{\text{best}}^t$ denotes the best-performing solution in the current iteration;
-- $v$ is a step-size parameter (which may be designed to decay over iterations, e.g., $v_t = v_0 \exp(-\lambda t)$);
-- $r_2$ and $r_3$ are random variables sampled from the uniform distribution $U(0,1)$;
-- $p$ is a threshold that determines whether to move toward the current best solution or to retain a random update.
+- $v$ is the step-length parameter (which can be designed to decay gradually with iterations, e.g., $v_t = v_0\exp(-\lambda t)$);
+- $r_2$ and $r_3$ are random variables uniformly distributed in $U(0,1)$;
+- $p$ is the switching threshold that determines whether to move towards the current best solution or to maintain randomness in the update.
 
-This formula reflects the dynamic adaptability of slime mould when searching for food: sometimes it tends to move toward food-rich areas (i.e., the current best region), while at other times it retains randomness to explore more broadly.
+This formula reflects the dynamic adaptability of slime molds when foraging: at some moments, the slime mold tends to move toward regions rich in food (i.e., the current best area), while at other times it retains a degree of randomness to thoroughly explore a wider area.
 
 ---
 
-### 2. Integrating the Mechanism into the ToT Architecture
+### 2. Incorporating the Idea into the ToT Framework
 
-In the ToT framework, we construct a reasoning tree from an initial node $s_0$ to a final node $s_f$, with each edge representing a reasoning step. To introduce SMA’s update concept, we define a “quality score” $S_{ij}$ for each edge $(i,j)$ (initially $S_{ij}^0 = S_0$). This score measures the quality of a reasoning step and guides subsequent path selection. The multi-path reasoning process uses two main ideas:
+Within the ToT framework, we construct a reasoning tree from the starting node $s_0$ to the final node $s_f$, with each edge representing a reasoning step. To incorporate the SMA update idea, we define a "quality score" $S_{ij}$ for each edge $(i,j)$ (initially set as $S_{ij}^0 = S_0$). This score measures the quality of the reasoning step and guides subsequent path selection. The multi-path reasoning process is based on the following two core ideas:
 
 1. **Edge Selection**  
-   For the set of candidate next states $N(i)$ from node $i$, we use the softmax function to compute the probability of choosing edge $(i,j)$:
+   For the set of candidate next states $N(i)$ for node $i$, the softmax function is used to compute the edge selection probability:
+   
+$$
+P_{ij}^t = \frac{\exp(S_{ij}^t/\tau)}{\sum_{l\in N(i)}\exp(S_{il}^t/\tau)},
+$$
+   
+   where $\tau$ is the temperature parameter that balances exploration and exploitation.
 
-   $$
-   P_{ij}^t = \frac{\exp(S_{ij}^t / \tau)}{\sum_{l \in N(i)} \exp(S_{il}^t / \tau)},
-   $$
-
-   where $\tau$ is a temperature parameter that balances exploration and exploitation.
-
-2. **Dynamic Update of the Quality Score**  
-   Incorporating the SMA “shift” update idea, we iteratively update the edge scores $S_{ij}$. Let
-
-   $$
-   S_{\text{best}}^t = \max_{l \in N(i)} S_{il}^t
-   $$
-
-   be the highest score among all candidate edges from node $i$ in the current iteration. Then, the update for edge $(i,j)$ is given by:
-
-   $$
-   S_{ij}^{t+1} =
-   \begin{cases}
-   S_{\text{best}}^t + v \cdot \ln\bigl(\tfrac{1}{r_2}\bigr) \cdot \bigl(S_{ij}^t - S_{\text{best}}^t\bigr), & \text{if } r_3 < p,\\[6pt]
-   S_{ij}^t + v \cdot \ln\bigl(\tfrac{1}{r_2}\bigr) \cdot \bigl(S_{ij}^t - S_{\text{best}}^t\bigr), & \text{otherwise,}
-   \end{cases}
-   $$
-
+2. **Dynamic Update of Quality Scores**  
+   Incorporating the stochastic "displacement" idea from SMA, the quality score $S_{ij}$ is updated iteratively. Let the highest score among all candidate edges from node $i$ be:
+   
+$$
+S_{\text{best}}^t = \max_{l\in N(i)} S_{il}^t.
+$$
+   
+   Then, the update for edge $(i,j)$ is given by:
+   
+$$
+S_{ij}^{t+1} =
+\begin{cases}
+S_{\text{best}}^t + v \cdot \ln\left(\frac{1}{r_2}\right) \cdot \left( S_{ij}^t - S_{\text{best}}^t \right), & \text{if } r_3 < p, \\
+S_{ij}^t + v \cdot \ln\left(\frac{1}{r_2}\right) \cdot \left( S_{ij}^t - S_{\text{best}}^t \right), & \text{otherwise,}
+\end{cases}
+$$
+   
    where:
-   - $v$ is the step-size parameter (potentially adjusted over iterations);
+   - $v$ is the step-length parameter (which may be adjusted iteratively);
    - $r_2, r_3 \sim U(0,1)$ are random variables;
-   - $p$ is the threshold determining whether to move toward the current best score.
+   - $p$ is the switching threshold that determines whether the score is updated towards the current best.
 
-This update mechanism allows each edge’s score to move toward the local optimum with some probability (reflecting dynamic path adjustment) while preserving randomness (ensuring global exploration), thus realizing self-organization in the reasoning path.
+This update mechanism allows the edge score to move towards the local best with a certain probability (demonstrating dynamic path adjustment) while retaining randomness to ensure global exploration, thereby achieving self-organized adjustment of reasoning paths.
 
 ---
 
 ### 3. Quality Feedback and Score Decay
 
-To make full use of the complete reasoning chains generated through multi-path exploration, we introduce a quality feedback mechanism. Suppose a complete path from $s_0$ to $s_f$ is denoted by $P$, with a quality evaluation function defined as:
+To fully leverage the complete reasoning chain generated during the multi-path reasoning process, a quality feedback mechanism is introduced. Suppose a complete reasoning path from $s_0$ to $s_f$ is denoted by $P$, and its quality evaluation function is defined as:
 
 $$
 Q(P) = w_1 C(P) + w_2 L(P) + w_3 E(P),
 $$
 
 where:
-
-- $C(P)$ represents semantic coherence (e.g., embedding similarity between adjacent states);
-- $L(P)$ represents a path length penalty (e.g., $-\ln(\lvert P \rvert)$);
-- $E(P)$ represents expert consensus scores;
+- $C(P)$ represents semantic coherence (e.g., similarity between adjacent state embeddings);
+- $L(P)$ represents a path length penalty (e.g., $-\ln(|P|)$);
+- $E(P)$ represents the expert consensus score;
 - $w_1, w_2, w_3$ are the corresponding weights.
 
-For each edge $(i,j)$ in path $P$, a feedback term is added to the updated score:
+For each edge $(i,j)$ in path $P$, the updated score is further augmented by a feedback term:
 
 $$
 S_{ij}^{t+1} \leftarrow S_{ij}^{t+1} + \gamma \cdot Q(P),
 $$
 
-where $\gamma$ is the feedback weight parameter. To prevent scores from growing unbounded, we further introduce a decay term:
+where $\gamma$ is the feedback weight parameter. To prevent the score from accumulating indefinitely, a decay term is applied:
 
 $$
 S_{ij}^{t+1} \leftarrow (1-\delta) \, S_{ij}^{t+1},
@@ -292,79 +283,87 @@ $$
 
 where $\delta$ is the decay rate.
 
-This feedback mechanism ensures that high-quality reasoning paths reinforce the scores of the edges they traverse in each iteration, making them more likely to be selected in subsequent iterations. This reflects an information-sharing and feedback mechanism.
+This feedback mechanism ensures that high-quality reasoning paths reinforce the scores along their edges in each iteration, making them more likely to be selected in subsequent iterations, thereby embodying a mechanism of information sharing and feedback.
 
 ---
 
-### 4. SMA-ToT Algorithm Flow
+### 4. SMA-ToT Algorithm Process
 
-The entire SMA-ToT framework proceeds as follows:
+The execution process of the SMA-ToT framework is as follows:
 
 1. **Initialization**  
-   - Use a central LLM to generate the initial ToT tree and assign each edge $(i,j)$ an initial score $S_{ij}^0 = S_0$.
+   - Use a central LLM to generate the initial ToT tree and assign an initial score $S_{ij}^0 = S_0$ to each edge $(i,j)$.
 
 2. **Path Generation**  
-   - For each node $i$, sample the next state based on the edge selection probability
-     $$
-     P_{ij}^t = \frac{\exp(S_{ij}^t / \tau)}{\sum_{l \in N(i)} \exp(S_{il}^t / \tau)},
-     $$
-     until a complete reasoning path $P_k$ is formed. Multiple experts independently generate different paths to ensure diversity in exploration.
+   - For each node $i$, sample the next state based on the edge selection probability:
+   
+ $$
+ P_{ij}^t = \frac{\exp(S_{ij}^t/\tau)}{\sum_{l\in N(i)}\exp(S_{il}^t/\tau)},
+ $$
+     
+   until a complete reasoning path $P_k$ is generated. Multiple experts independently generate various reasoning paths to ensure diverse exploration.
 
 3. **Path Evaluation**  
-   - Compute the quality score $Q(P_k)$ for each generated path $P_k$.
+   - Compute the quality evaluation $Q(P_k)$ for each generated reasoning path $P_k$.
 
 4. **Score Update**  
-   - For each edge $(i,j)$ in $P_k$, update the score as follows:
-     $$
-     S_{ij}^{t+1} =
-     \begin{cases}
-     S_{\text{best}}^t + v \cdot \ln\bigl(\tfrac{1}{r_2}\bigr) \cdot \bigl(S_{ij}^t - S_{\text{best}}^t\bigr), & r_3 < p,\\[6pt]
-     S_{ij}^t + v \cdot \ln\bigl(\tfrac{1}{r_2}\bigr) \cdot \bigl(S_{ij}^t - S_{\text{best}}^t\bigr), & \text{otherwise,}
-     \end{cases}
-     $$
-     and then add feedback:
-     $$
-     S_{ij}^{t+1} \leftarrow S_{ij}^{t+1} + \gamma \cdot Q(P_k),
-     $$
-     finally applying the decay:
-     $$
-     S_{ij}^{t+1} \leftarrow (1-\delta) \, S_{ij}^{t+1}.
-     $$
+   - For each edge $(i,j)$ in path $P_k$, update the score using:
+   
+$$
+S_{ij}^{t+1} =
+\begin{cases}
+S_{\text{best}}^t + v \cdot \ln\left(\frac{1}{r_2}\right) \cdot \left( S_{ij}^t - S_{\text{best}}^t \right), & r_3 < p, \\
+S_{ij}^t + v \cdot \ln\left(\frac{1}{r_2}\right) \cdot \left( S_{ij}^t - S_{\text{best}}^t \right), & \text{otherwise,}
+\end{cases}
+$$
+   
+   then add the feedback:
+   
+$$
+S_{ij}^{t+1} \leftarrow S_{ij}^{t+1} + \gamma \cdot Q(P_k),
+$$
+   
+   and finally apply decay:
+   
+$$
+S_{ij}^{t+1} \leftarrow (1-\delta) \, S_{ij}^{t+1}.
+$$
 
-5. **Iterative Updating and Optimal Path Extraction**  
-   - Repeat the path generation and score update steps until reaching a maximum number of iterations or satisfying a convergence criterion.  
-   - Finally, among all generated paths, select the path with the highest accumulated scores as the final answer.
+5. **Iterative Update and Extraction of the Optimal Path**  
+   - Repeat the path generation and score update steps until reaching the preset maximum number of iterations or satisfying the convergence criteria.  
+   - Finally, extract the reasoning chain with the highest cumulative score from all paths as the final answer.
 
-6. **Automatic Parameter Tuning (Based on MAML)**  
-   - Tunable parameters include:
-     - Step size $v$ and its decay rate $\lambda$;  
-     - Threshold $p$;  
+6. **Automatic Parameter Adjustment (Based on MAML)**  
+   - The adjustable parameters include:  
+     - Step-length $v$ and its decay rate $\lambda$;  
+     - Switching threshold $p$;  
      - Temperature parameter $\tau$;  
      - Feedback weight $\gamma$;  
      - Decay rate $\delta$;  
-     - Weights $w_1, w_2, w_3$ in the quality function.  
-   - Through the Model-Agnostic Meta-Learning (MAML) framework, when facing new tasks, the system can automatically optimize these parameters with a small number of gradient updates, thereby improving adaptability and robustness.
+     - Weights $w_1, w_2, w_3$ in the quality evaluation function.  
+   - Using the model-agnostic meta-learning (MAML) framework, these parameters can be automatically optimized with a few gradient updates when facing new tasks, thereby enhancing the adaptability and robustness of the system.
 
 ---
 
-### 5. Advantages and Key Characteristics
+### 5. Advantages and Characteristics of the Method
 
-The SMA-ToT framework embodies the core features of SMA and aligns with the objectives of the ToT architecture through the following four aspects:
+The SMA-ToT framework fully demonstrates the core characteristics of SMA and aligns with the objectives of the ToT framework through the following aspects:
 
-1. **Self-Organizing Capability**  
-   - The score update mechanism enables the reasoning tree to spontaneously adjust its edge connections over multiple iterations, with high-quality paths receiving positive feedback and naturally standing out.
+1. **Self-Organization**  
+   - The score update mechanism allows the reasoning tree to spontaneously adjust the connectivity of its edges over multiple iterations, with high-quality paths receiving positive feedback and naturally emerging.
 
 2. **Dynamic Path Adjustment**  
-   - By leveraging SMA’s random “shift” update formula, the method can move toward the current best score with a certain probability while preserving randomness to explore new paths. This balances local search and global exploration.
+   - By utilizing the stochastic "displacement" update formula from SMA, the method achieves a balance between local search and global exploration by moving towards the current best score with a certain probability while retaining randomness to explore new paths.
 
 3. **Robustness and Flexibility**  
-   - Because it does not rely on strict gradient information, this approach is well-suited for complex reasoning tasks that are non-convex, discontinuous, or noisy, reflecting SMA’s low dependency on problem structure.
+   - Since the method does not rely on strict gradient information, it is well-suited for handling complex reasoning tasks that are non-convex, discontinuous, or noisy, demonstrating SMA's low dependency on problem structure.
 
 4. **Information Sharing and Feedback Mechanism**  
-   - By evaluating the entire reasoning path for quality and distributing the feedback across the edges in the path, the information from better-performing paths is shared, and the influence of inefficient paths is suppressed, thus enabling self-organizing global optima.
+   - By evaluating the quality of complete reasoning paths and distributing the feedback across the edges, high-performing path information is shared while less efficient paths are suppressed, thereby enabling a self-organized global search for the optimal solution.
 
 ---
 
-## Conclusion
+## Summary
 
-In this project, the SMA-ToT framework is fully built on SMA’s random “shift” update mechanism and integrated into the multi-path exploration of ToT. By defining a dynamic quality score $S_{ij}$ for each edge and incorporating feedback updates, the framework enables self-organization and dynamic adjustment of reasoning paths. Furthermore, MAML is employed to automatically optimize crucial parameters (e.g., step size, threshold, temperature, feedback weight) so that the system can quickly adapt to diverse and complex reasoning tasks while providing high-quality answers. The proposed method balances self-organization, dynamic path adjustment, robustness, flexibility, and an effective information sharing and feedback mechanism, offering a novel optimization pathway for complex reasoning based on language models.
+The proposed SMA-ToT framework is entirely based on the stochastic "displacement" update mechanism of SMA, integrated into the basic structure of multi-path exploration in ToT. By defining a dynamic quality score $S_{ij}$ for each edge and incorporating feedback updates, the method achieves self-organization and dynamic adjustment of reasoning paths. Furthermore, by leveraging the MAML framework for the automatic optimization of key parameters (such as step-length, switching threshold, temperature, and feedback weight), the system is capable of quickly adapting to diverse and complex reasoning tasks while producing high-quality answers. This method theoretically balances self-organization, dynamic path adjustment, robustness and flexibility, as well as information sharing and feedback mechanisms, providing a novel optimization pathway for complex reasoning based on language models.
+
