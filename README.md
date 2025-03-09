@@ -1,4 +1,5 @@
-# 基于 SMA-ToT 的多路径推理优化方法 Multi-Path Reasoning Optimization Method Based on SMA-ToT
+# 基于 SMA-ToT 的多路径推理优化方法  
+Multi-Path Reasoning Optimization Method Based on SMA-ToT
 
 ## 目录 Table of Content
 
