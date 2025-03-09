@@ -1,6 +1,31 @@
-# 基于 SMA-ToT 的多路径推理优化方法
+# 基于 SMA-ToT 的多路径推理优化方法 Multi-Path Reasoning Optimization Method Based on SMA-ToT
+
+## 目录 Table of Content
+
+### 中文部分
+  - [說明](#說明)
+  - [方法](#方法)
+    - [1. 基于 SMA 原始机制的理论基础](#1-基于-sma-原始机制的理论基础)
+    - [2. 融入 ToT 架构的思想](#2-融入-tot-架构的思想)
+      - [边的选择](#边的选择)
+      - [质量评分的动态更新](#质量评分的动态更新)
+    - [3. 质量反馈与评分衰减](#3-质量反馈与评分衰减)
+    - [4. SMA-ToT 算法流程](#4-sma-tot-算法流程)
+    - [5. 方法优势与特性体现](#5-方法优势与特性体现)
+  - [总结](#总结)
+
+### English Section
+  - [Introduction](#introduction)
+  - [Method](#method)
+    - [1. Theoretical Foundation Based on the Original SMA Mechanism](#1-theoretical-foundation-based-on-the-original-sma-mechanism)
+    - [2. Incorporating the Idea into the ToT Framework](#2-incorporating-the-idea-into-the-tot-framework)
+    - [3. Quality Feedback and Score Decay](#3-quality-feedback-and-score-decay)
+    - [4. SMA-ToT Algorithm Process](#4-sma-tot-algorithm-process)
+    - [5. Advantages and Characteristics of the Method](#5-advantages-and-characteristics-of-the-method)
+  - [Summary](#summary)
 
 ---
+
 ## 說明
 
 本项目旨在提出一种全新设计的 SMA-ToT 框架，其核心思想在于将黏菌算法 (SMA) 的随机“位移”更新机制引入到树状思维 (ToT) 的多路径推理过程中，从而实现对推理路径优劣的动态调整与自组织优化。本文方法部分主要包括以下几个方面：从 SMA 原始机制出发的理论基础、如何将该机制融入 ToT 架构、各个更新公式的推导，以及基于元学习 (MAML) 对关键参数进行自动调整的策略。
@@ -183,8 +208,6 @@ $$
 本项目提出的 SMA-ToT 框架完全基于 SMA 的随机“位移”更新机制，融入 ToT 多路径探索的基本架构，通过对每条边定义动态质量评分 $S_{ij}$ 并结合反馈更新，实现对推理路径的自组织和动态调整。进一步地，利用 MAML 框架对关键参数（如步长、切换阈值、温度、反馈权重等）进行自动优化，使得系统能够在面对多样化和复杂的推理任务时迅速适应并输出高质量解答。该方法在理论上兼顾了自组织能力、动态路径调整、鲁棒性与灵活性以及信息共享与反馈机制，为基于语言模型的复杂推理提供了一条全新的优化路径。
 
 ---
-
-# Multi-Path Reasoning Optimization Method Based on SMA-ToT
 
 ## Introduction
 
